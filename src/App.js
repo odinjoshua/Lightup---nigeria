@@ -2,26 +2,40 @@ import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Circle, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { database } from './firebase';
-import { ref, push, onValue } from 'firebase/database';
+import { ref, push, onValue, set } from 'firebase/database';
 
+// Agbor, Delta State — Streets & Communities
 const demoZones = [
-  { id: 1, name: "Ikeja, Lagos", lat: 6.6018, lng: 3.3515, status: "outage" },
-  { id: 2, name: "Lekki, Lagos", lat: 6.4698, lng: 3.5852, status: "power" },
-  { id: 3, name: "Surulere, Lagos", lat: 6.5059, lng: 3.3590, status: "outage" },
-  { id: 4, name: "Garki, Abuja", lat: 9.0333, lng: 7.4833, status: "power" },
-  { id: 5, name: "Wuse, Abuja", lat: 9.0765, lng: 7.4862, status: "outage" },
-  { id: 6, name: "GRA, Benin City", lat: 6.3176, lng: 5.6037, status: "outage" },
-  { id: 7, name: "Agbor, Delta", lat: 6.2500, lng: 6.2000, status: "power" },
-  { id: 8, name: "Asaba, Delta", lat: 6.1978, lng: 6.7298, status: "outage" },
-  { id: 9, name: "Warri, Delta", lat: 5.5160, lng: 5.7500, status: "power" },
-  { id: 10, name: "GRA, Port Harcourt", lat: 4.8242, lng: 7.0336, status: "outage" },
-  { id: 11, name: "Sabon Gari, Kano", lat: 12.0022, lng: 8.5920, status: "power" },
-  { id: 12, name: "Bodija, Ibadan", lat: 7.4258, lng: 3.9012, status: "outage" },
-  { id: 13, name: "Independence Layout, Enugu", lat: 6.4584, lng: 7.5464, status: "power" },
-  { id: 14, name: "Barnawa, Kaduna", lat: 10.4763, lng: 7.4234, status: "outage" },
-  { id: 15, name: "New Owerri, Imo", lat: 5.4840, lng: 7.0351, status: "power" },
-  { id: 16, name: "State Housing, Calabar", lat: 4.9517, lng: 8.3220, status: "outage" },
-  { id: 17, name: "Rayfield, Jos", lat: 9.8567, lng: 8.8853, status: "power" },
+  { id: 1, name: "Baleke Street, Boji-Boji Agbor" , lat: 6.2481, lng: 6.1959 },
+  { id: 2, name: "Okoh Street, Boji-Boji Agbor", lat: 6.2495, lng: 6.1972 },
+  { id: 3, name: "Ogbemudein Street", lat: 6.2470, lng: 6.1945 },
+  { id: 4, name: "Queen Street", lat: 6.2505, lng: 6.1980 },
+  { id: 5, name: "White Street", lat: 6.2460, lng: 6.1990 },
+  { id: 6, name: "Prof. John Ebie Street", lat: 6.2515, lng: 6.1930 },
+  { id: 7, name: "Osegi Street", lat: 6.2450, lng: 6.1965 },
+  { id: 8, name: "Ojiefo Street", lat: 6.2490, lng: 6.2010 },
+  { id: 9, name: "Odozi Street", lat: 6.2530, lng: 6.1955 },
+  { id: 10, name: "Isede Street", lat: 6.2440, lng: 6.1920 },
+  { id: 11, name: "Egun Street", lat: 6.2520, lng: 6.2000 },
+  { id: 12, name: "Charles Street", lat: 6.2465, lng: 6.1900 },
+  { id: 13, name: "Edike Street (INEC Ika South LGA)", lat: 6.2500, lng: 6.1900 },
+  { id: 14, name: "Old Lagos-Asaba Road", lat: 6.2550, lng: 6.1980 },
+  { id: 15, name: "Abraka Road (Towards UNIDEL)", lat: 6.2400, lng: 6.2050 },
+  { id: 16, name: "Warri-Uromi Road", lat: 6.2350, lng: 6.1980 },
+  { id: 17, name: "Sakpoba Road", lat: 6.2560, lng: 6.1900 },
+  { id: 18, name: "Agbor-Obi Road", lat: 6.2300, lng: 6.1950 },
+  { id: 19, name: "Owanta Street, Boji-Boji Owa", lat: 6.2420, lng: 6.1870 },
+  { id: 20, name: "Abraka Road, Boji-Boji Owa", lat: 6.2380, lng: 6.1900 },
+  { id: 21, name: "Alika Street", lat: 6.2540, lng: 6.2030 },
+  { id: 22, name: "Morka Street", lat: 6.2460, lng: 6.2040 },
+  { id: 23, name: "Buzugbe Street", lat: 6.2410, lng: 6.1940 },
+  { id: 24, name: "Melekwe Street", lat: 6.2480, lng: 6.1880 },
+  { id: 25, name: "Convent Street", lat: 6.2530, lng: 6.1870 },
+  { id: 26, name: "Efezomor Street", lat: 6.2390, lng: 6.2000 },
+  { id: 27, name: "Umeri Street", lat: 6.2450, lng: 6.2030 },
+  { id: 28, name: "Ugbaja Street", lat: 6.2510, lng: 6.1910 },
+  { id: 29, name: "Hausa Street", lat: 6.2370, lng: 6.1930 },
+  { id: 30, name: "Obaigbena Street", lat: 6.2430, lng: 6.1890 },
 ];
 
 const COLORS = {
@@ -33,13 +47,47 @@ const COLORS = {
   offWhite: "#F8FAF9",
   lightGray: "#E8F0EB",
   darkGray: "#2D2D2D",
+  neutral: "#999999",
 };
+
+function getDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLng = (lng2 - lng1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function findNearestZone(userLat, userLng) {
+  let nearest = demoZones[0];
+  let minDistance = getDistance(userLat, userLng, demoZones[0].lat, demoZones[0].lng);
+
+  demoZones.forEach((zone) => {
+    const distance = getDistance(userLat, userLng, zone.lat, zone.lng);
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearest = zone;
+    }
+  });
+
+  return { zone: nearest, distance: minDistance };
+}
 
 function App() {
   const [reports, setReports] = useState([]);
   const [message, setMessage] = useState('');
   const [lastReportTime, setLastReportTime] = useState(0);
   const [confirmationCounts, setConfirmationCounts] = useState({});
+  const [zoneStatuses, setZoneStatuses] = useState({});
+  const [selectedZoneId, setSelectedZoneId] = useState(demoZones[0].id);
+  const [locationStatus, setLocationStatus] = useState('');
+  const [userCoords, setUserCoords] = useState(null);
 
   useEffect(() => {
     const reportsRef = ref(database, 'reports');
@@ -59,6 +107,52 @@ function App() {
     });
   }, []);
 
+  useEffect(() => {
+    const zoneStatusRef = ref(database, 'zoneStatus');
+    onValue(zoneStatusRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setZoneStatuses(data);
+      } else {
+        setZoneStatuses({});
+      }
+    });
+  }, []);
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus('Location not supported on this device');
+      setTimeout(() => setLocationStatus(''), 3000);
+      return;
+    }
+
+    setLocationStatus('📍 Getting your location...');
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setUserCoords({ lat, lng });
+
+        const { zone, distance } = findNearestZone(lat, lng);
+        setSelectedZoneId(zone.id);
+
+        setLocationStatus(
+          '✓ You appear to be near ' + zone.name + ' (' + distance.toFixed(1) + ' km away)'
+        );
+        setTimeout(() => setLocationStatus(''), 5000);
+      },
+      (error) => {
+        let errorMsg = 'Could not get your location';
+        if (error.code === 1) errorMsg = 'Location permission denied. Please allow access.';
+        if (error.code === 2) errorMsg = 'Location unavailable. Try again.';
+        if (error.code === 3) errorMsg = 'Location request timed out.';
+        setLocationStatus(errorMsg);
+        setTimeout(() => setLocationStatus(''), 4000);
+      }
+    );
+  };
+
   const submitReport = (type) => {
     const now = Date.now();
     const timeSinceLastReport = now - lastReportTime;
@@ -71,20 +165,38 @@ function App() {
       return;
     }
 
+    const selectedZone = demoZones.find((z) => z.id === selectedZoneId);
+
     const newReport = {
       type: type,
-      area: "My Location",
+      area: selectedZone.name,
       time: new Date().toLocaleTimeString(),
       timestamp: now,
+      reportedViaGPS: userCoords ? true : false,
     };
+
     push(ref(database, 'reports'), newReport);
+
+    set(ref(database, 'zoneStatus/' + selectedZone.id), {
+      status: type,
+      lastUpdated: now,
+      area: selectedZone.name,
+    });
+
     setLastReportTime(now);
     setMessage(
       type === 'outage'
-        ? 'Outage reported successfully!'
-        : 'Power restoration reported!'
+        ? selectedZone.name + ' reported as outage!'
+        : selectedZone.name + ' reported as power restored!'
     );
     setTimeout(() => setMessage(''), 3000);
+  };
+
+  const getZoneStatus = (zone) => {
+    if (zoneStatuses[zone.id] && zoneStatuses[zone.id].status) {
+      return zoneStatuses[zone.id].status;
+    }
+    return null;
   };
 
   return (
@@ -122,7 +234,7 @@ function App() {
           </span>
         </div>
         <span style={{ fontSize: "12px", color: COLORS.lightGreen, fontWeight: "600" }}>
-          ● LIVE OUTAGE MAP
+          ● AGBOR PILOT — LIVE OUTAGE MAP
         </span>
       </div>
 
@@ -139,6 +251,43 @@ function App() {
         }}
       >
         <button
+          onClick={useMyLocation}
+          style={{
+            background: COLORS.darkGreen,
+            color: "white",
+            border: "none",
+            padding: "10px 18px",
+            borderRadius: "10px",
+            fontSize: "13px",
+            fontWeight: "bold",
+            cursor: "pointer",
+          }}
+        >
+          📍 Use My Location
+        </button>
+
+        <select
+          value={selectedZoneId}
+          onChange={(e) => setSelectedZoneId(Number(e.target.value))}
+          style={{
+            padding: "10px 14px",
+            borderRadius: "10px",
+            border: "1px solid " + COLORS.lightGray,
+            fontSize: "13px",
+            fontWeight: "600",
+            color: COLORS.darkGreen,
+            background: "white",
+            maxWidth: "220px",
+          }}
+        >
+          {demoZones.map((zone) => (
+            <option key={zone.id} value={zone.id}>
+              {zone.name}
+            </option>
+          ))}
+        </select>
+
+        <button
           onClick={() => submitReport('outage')}
           style={{
             background: COLORS.red,
@@ -150,7 +299,6 @@ function App() {
             fontWeight: "bold",
             cursor: "pointer",
             boxShadow: "0 2px 6px rgba(231,76,60,0.35)",
-            transition: "transform 0.1s",
           }}
         >
           🔴 Light is Out
@@ -168,7 +316,6 @@ function App() {
             fontWeight: "bold",
             cursor: "pointer",
             boxShadow: "0 2px 6px rgba(46,204,113,0.35)",
-            transition: "transform 0.1s",
           }}
         >
           🟢 Light is Back
@@ -189,12 +336,28 @@ function App() {
             {message}
           </span>
         )}
+
+        {locationStatus && (
+          <span
+            style={{
+              fontSize: "12px",
+              fontWeight: "600",
+              color: COLORS.darkGreen,
+              background: COLORS.lightGray,
+              padding: "8px 14px",
+              borderRadius: "8px",
+              width: "100%",
+            }}
+          >
+            {locationStatus}
+          </span>
+        )}
       </div>
 
-      {/* MAP */}
+      {/* MAP — Centered on Agbor */}
       <MapContainer
-        center={[9.0820, 8.6753]}
-        zoom={6}
+        center={[6.2481, 6.1959]}
+        zoom={13}
         style={{ height: "calc(100vh - 122px)", width: "100%" }}
       >
         <TileLayer
@@ -202,30 +365,39 @@ function App() {
           attribution="OpenStreetMap contributors"
         />
 
-        {demoZones.map((zone) => (
-          <Circle
-            key={zone.id}
-            center={[zone.lat, zone.lng]}
-            radius={15000}
-            pathOptions={{
-              color: zone.status === "outage" ? COLORS.red : COLORS.lightGreen,
-              fillColor: zone.status === "outage" ? COLORS.red : COLORS.lightGreen,
-              fillOpacity: 0.45,
-              weight: 2,
-            }}
-          >
-            <Popup>
-              <strong style={{ color: COLORS.darkGreen }}>{zone.name}</strong>
-              <br />
-              Status:{" "}
-              {zone.status === "outage" ? (
-                <span style={{ color: COLORS.red, fontWeight: "bold" }}>🔴 Power Out</span>
-              ) : (
-                <span style={{ color: COLORS.green, fontWeight: "bold" }}>🟢 Power On</span>
-              )}
-            </Popup>
-          </Circle>
-        ))}
+        {demoZones.map((zone) => {
+          const liveStatus = getZoneStatus(zone);
+          let circleColor = COLORS.neutral;
+          if (liveStatus === "outage") circleColor = COLORS.red;
+          if (liveStatus === "power") circleColor = COLORS.lightGreen;
+
+          return (
+            <Circle
+              key={zone.id}
+              center={[zone.lat, zone.lng]}
+              radius={400}
+              pathOptions={{
+                color: circleColor,
+                fillColor: circleColor,
+                fillOpacity: liveStatus ? 0.5 : 0.25,
+                weight: 2,
+              }}
+            >
+              <Popup>
+                <strong style={{ color: COLORS.darkGreen }}>{zone.name}</strong>
+                <br />
+                Status:{" "}
+                {liveStatus === "outage" ? (
+                  <span style={{ color: COLORS.red, fontWeight: "bold" }}>🔴 Power Out</span>
+                ) : liveStatus === "power" ? (
+                  <span style={{ color: COLORS.green, fontWeight: "bold" }}>🟢 Power On</span>
+                ) : (
+                  <span style={{ color: COLORS.neutral, fontWeight: "bold" }}>⚪ No Reports Yet</span>
+                )}
+              </Popup>
+            </Circle>
+          );
+        })}
       </MapContainer>
 
       {/* RECENT REPORTS PANEL */}
@@ -251,9 +423,6 @@ function App() {
               color: COLORS.darkGreen,
               marginBottom: "10px",
               fontSize: "13px",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
             }}
           >
             📋 Recent Reports
@@ -274,6 +443,7 @@ function App() {
               >
                 <div>
                   {report.type === 'outage' ? '🔴' : '🟢'} {report.area} — {report.time}
+                  {report.reportedViaGPS ? ' 📍' : ''}
                 </div>
                 <span
                   style={{
@@ -313,6 +483,10 @@ function App() {
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
           <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.lightGreen, display: "inline-block" }}></span>
           Power On
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.neutral, display: "inline-block" }}></span>
+          No Reports
         </span>
       </div>
     </div>
