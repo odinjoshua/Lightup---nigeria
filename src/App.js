@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Circle, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { database } from './firebase';
-import { ref, push, onValue, set } from 'firebase/database';
+import { ref, push, onValue, set, get } from 'firebase/database';
+import { assignH3Cells, getZoneBoundary } from './utils/h3Zones';
+import { getDeviceId, buildReportSignature } from './utils/deviceSignature';
 
 // Agbor, Delta State — Streets & Communities
 const demoZones = [
@@ -38,6 +40,15 @@ const demoZones = [
   { id: 30, name: "Obaigbena Street", lat: 6.2430, lng: 6.1890 },
 ];
 
+// Each zone is snapped to its own H3 hexagonal cell so that no two
+// zones' shapes on the map can ever overlap.
+const demoZonesWithH3 = assignH3Cells(demoZones);
+
+// How long (in ms) we ignore a repeat of the *same* report (same
+// device, same zone, same status) so one person tapping repeatedly
+// can't flood the data with duplicate reports. Tune between 5–10 min.
+const DUPLICATE_REPORT_WINDOW_MS = 5 * 60 * 1000;
+
 const COLORS = {
   darkGreen: "#0A3D1F",
   green: "#1A7A3C",
@@ -65,10 +76,10 @@ function getDistance(lat1, lng1, lat2, lng2) {
 }
 
 function findNearestZone(userLat, userLng) {
-  let nearest = demoZones[0];
-  let minDistance = getDistance(userLat, userLng, demoZones[0].lat, demoZones[0].lng);
+  let nearest = demoZonesWithH3[0];
+  let minDistance = getDistance(userLat, userLng, demoZonesWithH3[0].lat, demoZonesWithH3[0].lng);
 
-  demoZones.forEach((zone) => {
+  demoZonesWithH3.forEach((zone) => {
     const distance = getDistance(userLat, userLng, zone.lat, zone.lng);
     if (distance < minDistance) {
       minDistance = distance;
@@ -85,7 +96,7 @@ function App() {
   const [lastReportTime, setLastReportTime] = useState(0);
   const [confirmationCounts, setConfirmationCounts] = useState({});
   const [zoneStatuses, setZoneStatuses] = useState({});
-  const [selectedZoneId, setSelectedZoneId] = useState(demoZones[0].id);
+  const [selectedZoneId, setSelectedZoneId] = useState(demoZonesWithH3[0].id);
   const [locationStatus, setLocationStatus] = useState('');
   const [userCoords, setUserCoords] = useState(null);
 
@@ -153,7 +164,7 @@ function App() {
     );
   };
 
-  const submitReport = (type) => {
+  const submitReport = async (type) => {
     const now = Date.now();
     const timeSinceLastReport = now - lastReportTime;
     const cooldownPeriod = 10000;
@@ -165,7 +176,41 @@ function App() {
       return;
     }
 
-    const selectedZone = demoZones.find((z) => z.id === selectedZoneId);
+    const selectedZone = demoZonesWithH3.find((z) => z.id === selectedZoneId);
+    const deviceId = getDeviceId();
+    const signature = buildReportSignature(deviceId, selectedZone.id, type);
+    const signatureRef = ref(database, 'signatures/' + signature);
+
+    // Block exact repeats: same device, same zone, same status, within
+    // the duplicate window — this is what stops one person from
+    // inflating the data by tapping the same button repeatedly.
+    try {
+      const existingSignature = await get(signatureRef);
+      if (existingSignature.exists()) {
+        const lastTimestamp = existingSignature.val().timestamp;
+        const elapsed = now - lastTimestamp;
+        if (elapsed < DUPLICATE_REPORT_WINDOW_MS) {
+          const minutesLeft = Math.ceil((DUPLICATE_REPORT_WINDOW_MS - elapsed) / 60000);
+          setMessage(
+            'You already reported "' +
+              (type === 'outage' ? 'Light Out' : 'Light Back') +
+              '" for ' +
+              selectedZone.name +
+              ' ' +
+              Math.round(elapsed / 60000) +
+              'm ago — try again in ' +
+              minutesLeft +
+              'm.'
+          );
+          setTimeout(() => setMessage(''), 4000);
+          return;
+        }
+      }
+    } catch (err) {
+      // If we can't reach the signatures table (e.g. offline), don't
+      // block a possibly-real outage report — just log it and continue.
+      console.warn('Duplicate-signature check failed, allowing the report through:', err);
+    }
 
     const newReport = {
       type: type,
@@ -173,6 +218,7 @@ function App() {
       time: new Date().toLocaleTimeString(),
       timestamp: now,
       reportedViaGPS: userCoords ? true : false,
+      deviceId: deviceId,
     };
 
     push(ref(database, 'reports'), newReport);
@@ -182,6 +228,8 @@ function App() {
       lastUpdated: now,
       area: selectedZone.name,
     });
+
+    set(signatureRef, { timestamp: now, type: type, zoneId: selectedZone.id });
 
     setLastReportTime(now);
     setMessage(
@@ -280,7 +328,7 @@ function App() {
             maxWidth: "220px",
           }}
         >
-          {demoZones.map((zone) => (
+          {demoZonesWithH3.map((zone) => (
             <option key={zone.id} value={zone.id}>
               {zone.name}
             </option>
@@ -365,20 +413,19 @@ function App() {
           attribution="OpenStreetMap contributors"
         />
 
-        {demoZones.map((zone) => {
+        {demoZonesWithH3.map((zone) => {
           const liveStatus = getZoneStatus(zone);
-          let circleColor = COLORS.neutral;
-          if (liveStatus === "outage") circleColor = COLORS.red;
-          if (liveStatus === "power") circleColor = COLORS.lightGreen;
+          let fillColor = COLORS.neutral;
+          if (liveStatus === "outage") fillColor = COLORS.red;
+          if (liveStatus === "power") fillColor = COLORS.lightGreen;
 
           return (
-            <Circle
+            <Polygon
               key={zone.id}
-              center={[zone.lat, zone.lng]}
-              radius={400}
+              positions={getZoneBoundary(zone)}
               pathOptions={{
-                color: circleColor,
-                fillColor: circleColor,
+                color: fillColor,
+                fillColor: fillColor,
                 fillOpacity: liveStatus ? 0.5 : 0.25,
                 weight: 2,
               }}
@@ -395,7 +442,7 @@ function App() {
                   <span style={{ color: COLORS.neutral, fontWeight: "bold" }}>⚪ No Reports Yet</span>
                 )}
               </Popup>
-            </Circle>
+            </Polygon>
           );
         })}
       </MapContainer>
